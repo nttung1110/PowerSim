@@ -1,0 +1,98 @@
+diff --git a/third_party/powerfoam/powerfoam/rasterize.py b/third_party/powerfoam/powerfoam/rasterize.py
+index c9ac17a..8d1cbae 100644
+--- a/third_party/powerfoam/powerfoam/rasterize.py
++++ b/third_party/powerfoam/powerfoam/rasterize.py
+@@ -2201,12 +2201,33 @@ class Rasterizer:
+                 total_tiles + 1, dtype=torch.int32, device=self.device
+             )
+ 
+-            wp.launch(
+-                self.count_visible_kernel,
+-                dim=num_points,
+-                inputs=[camera.to_warp(), all_spheres.detach(), tile_inter_counts],
+-                block_dim=256,
+-            )
++            if self.args.is_pinhole:
++                wp.launch(
++                    self.count_visible_kernel,
++                    dim=num_points,
++                    inputs=[camera.to_warp(), all_spheres.detach(), tile_inter_counts],
++                    block_dim=256,
++                )
++            else:
++                cones, level_offsets, level_dims_h, level_dims_w, num_levels, tile_level = (
++                    self._precompute_cones(camera, tiles_h, tiles_w)
++                )
++                wp.launch(
++                    self.count_visible_kernel,
++                    dim=num_points,
++                    inputs=[
++                        camera.to_warp(),
++                        all_spheres.detach(),
++                        cones,
++                        level_offsets,
++                        level_dims_h,
++                        level_dims_w,
++                        num_levels,
++                        tile_level,
++                        tile_inter_counts,
++                    ],
++                    block_dim=256,
++                )
+ 
+             offsets = torch.cumsum(tile_inter_counts.long(), dim=0)
+             n_intersections = offsets[-1].item()
+@@ -2221,19 +2242,40 @@ class Rasterizer:
+                 total_tiles, dtype=torch.int32, device=self.device
+             )
+ 
+-            wp.launch(
+-                self.write_visible_kernel,
+-                dim=num_points,
+-                inputs=[
+-                    camera.to_warp(),
+-                    all_spheres.detach(),
+-                    offsets,
+-                    tile_prim_indices,
+-                    sort_keys,
+-                    write_counter,
+-                ],
+-                block_dim=256,
+-            )
++            if self.args.is_pinhole:
++                wp.launch(
++                    self.write_visible_kernel,
++                    dim=num_points,
++                    inputs=[
++                        camera.to_warp(),
++                        all_spheres.detach(),
++                        offsets,
++                        tile_prim_indices,
++                        sort_keys,
++                        write_counter,
++                    ],
++                    block_dim=256,
++                )
++            else:
++                wp.launch(
++                    self.write_visible_kernel,
++                    dim=num_points,
++                    inputs=[
++                        camera.to_warp(),
++                        all_spheres.detach(),
++                        cones,
++                        level_offsets,
++                        level_dims_h,
++                        level_dims_w,
++                        num_levels,
++                        tile_level,
++                        offsets,
++                        tile_prim_indices,
++                        sort_keys,
++                        write_counter,
++                    ],
++                    block_dim=256,
++                )
+ 
+             tile_prim_perm = torch.argsort(sort_keys)
+             tile_prim_indices = tile_prim_indices[tile_prim_perm]

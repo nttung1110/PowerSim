@@ -1,0 +1,71 @@
+{
+    "material": "jelly",
+    "n_grid": 150,
+    "grid_lim": 2.0,
+    "E": 2000.0,
+    "nu": 0.3,
+    "density": 200,
+    "g": [
+        0.0,
+        0.0,
+        0.0
+    ],
+    "rpic_damping": 0.5,
+    "grid_v_damping_scale": 0.9995,
+    "substep_dt": 0.0001,
+    "frame_dt": 0.01,
+    "frame_num": 200,
+    "scale": 0.6,
+    "rotation_degree": [
+        25.0
+    ],
+    "rotation_axis": [
+        1
+    ],
+    "boundary_conditions": [
+        {
+            "type": "bounding_box"
+        },
+        {
+            "type": "enforce_particle_translation",
+            "point": [
+                1.0,
+                1.25,
+                1.0
+            ],
+            "size": [
+                1.0,
+                0.05,
+                1.0
+            ],
+            "velocity": [
+                0.0,
+                0.2,
+                0.0
+            ],
+            "start_time": 0.0,
+            "end_time": 1000.0
+        },
+        {
+            "type": "enforce_particle_translation",
+            "point": [
+                1.0,
+                0.75,
+                1.0
+            ],
+            "size": [
+                1.0,
+                0.05,
+                1.0
+            ],
+            "velocity": [
+                0.0,
+                -0.2,
+                0.0
+            ],
+            "start_time": 0.0,
+            "end_time": 2.2
+        }
+    ],
+    "default_camera_index": 0
+}

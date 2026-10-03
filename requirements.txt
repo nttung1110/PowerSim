@@ -1,0 +1,47 @@
+# PowerSim runtime dependencies. Pinned to the versions the paper's experiments ran with
+# (Python 3.11, CUDA 12.8). Install with:
+#     pip install -r requirements.txt
+# torch/torchvision come from the CUDA 12.8 wheel index declared below.
+--extra-index-url https://download.pytorch.org/whl/cu128
+torch==2.9.1
+torchvision==0.24.1
+
+# GPU kernels (PowerFoam rasterizer / ray tracer and the MPM solver are all NVIDIA Warp)
+warp-lang==1.10.0
+
+# Interior particle filling (PhysGaussian's particle_filling: taichi + marching cubes)
+taichi==1.7.4
+pymcubes==0.1.6
+
+# Numerics / IO
+numpy==2.1.2
+scipy==1.16.2
+pillow==11.0.0
+pyyaml==6.0.2
+configargparse==1.7.1
+tqdm==4.67.1
+matplotlib==3.10.6
+plyfile==1.1.2
+h5py==3.16.0
+pyquaternion==0.9.9
+opencv-python==4.12.0.88
+
+# PowerFoam data loading / checkpoint scaffolding
+pycolmap==3.12.0
+open3d==0.19.0
+fpsample==0.3.3
+
+# Metrics
+lpips==0.1.4
+
+# ffmpeg binary for --compile-video (used when no ffmpeg is on PATH)
+imageio-ffmpeg==0.6.0
+
+# Checkpoint download (scripts/download_checkpoints.py)
+huggingface_hub[hf_xet]==1.33.0
+
+# 2D mask generation with Grounded-SAM (powersim.foamedit.generate_masks); models download from the HF hub on first use
+transformers==5.15.0
+
+# Tests
+pytest==7.4.0

@@ -1,0 +1,294 @@
+diff --git a/third_party/powerfoam/render_orbit.py b/third_party/powerfoam/render_orbit.py
+index b5bce6f..4f2ef71 100644
+--- a/third_party/powerfoam/render_orbit.py
++++ b/third_party/powerfoam/render_orbit.py
+@@ -10,6 +10,21 @@ Key orbit parameters:
+   --azimuth_start / --azimuth_end  horizontal sweep in degrees
+   --elevation                      fixed camera height angle in degrees
+   --radius                         camera distance from scene center
++  --fov                            horizontal field of view in degrees
++
++--radius, --fov, --azimuth_start/--azimuth_end, and the orbit's own up axis all default to
++values DERIVED from the training cameras (config.yaml's data_path/scene, loaded the same way
++view.py's own interactive viewer does) rather than fixed generic numbers:
++  - up axis / radius / fov: matters for scenes whose coordinate frame isn't Z-up by convention
++    (e.g. an independently-run COLMAP reconstruction, whose up axis can point anywhere) or
++    whose absolute scale isn't ~1 (COLMAP's own reconstruction scale is arbitrary/unconstrained).
++  - azimuth range: a real capture very often only covers a partial range of viewpoints (e.g.
++    walking around the front of a desk against a wall, never behind it) -- unlike a synthetic
++    scene rendered from every angle, sweeping a full 360 deg by default would orbit into
++    unphotographed regions where the reconstruction was never constrained and looks broken.
++Pass --radius/--fov/--azimuth_start/--azimuth_end explicitly to override any of these. Falls
++back to fixed generic defaults (radius=1.3, fov=50, world-Z up, -35 deg to 325 deg) if the
++training dataset isn't available on disk.
+ """
+ 
+ import sys
+@@ -32,6 +47,7 @@ POWERFOAM_DIR = Path(__file__).resolve().parent
+ sys.path.insert(0, str(POWERFOAM_DIR))
+ 
+ from configs import Params
++from data_loader import DataHandler
+ from powerfoam.scene import PowerfoamScene
+ from powerfoam.camera import TorchCamera
+ from powerfoam.rasterize import Rasterizer, VisOptions
+@@ -81,10 +97,107 @@ def load_model(checkpoint: Path, args: Params, device: torch.device) -> Powerfoa
+     return model
+ 
+ 
++# ---------------------------------------------------------------------------
++# Deriving orbit defaults from the actual training cameras
++# ---------------------------------------------------------------------------
++
++def derive_azimuth_range(eyes: torch.Tensor, center: torch.Tensor, u1: torch.Tensor, u2: torch.Tensor):
++    """Default azimuth sweep covering the range actually photographed by the training cameras,
++    not a blind full 360 deg loop -- a real capture (as opposed to a synthetic scene rendered
++    from every angle) very often only covers a partial range of viewpoints (e.g. walking around
++    the front of a desk against a wall, never behind it). Orbiting into the uncovered gap
++    inevitably passes through poorly- or un-reconstructed geometry (no photos ever constrained
++    it), which looks broken -- not a bug in the orbit math itself, just outside what SfM could
++    ever have reconstructed reliably.
++
++    Standard circular-range technique: find the single largest gap between the (sorted, mod 360)
++    training-camera azimuths and take the default sweep as everything OUTSIDE that gap, trimmed
++    inward by a small margin so the sweep doesn't ride the very edge of coverage.
++    """
++    rel = eyes - center[None, :]
++    az_rad = torch.atan2(rel @ u2, rel @ u1)
++    azs = sorted((math.degrees(a) % 360.0) for a in az_rad.tolist())
++    n = len(azs)
++    gaps = [(azs[(i + 1) % n] - azs[i]) % 360.0 for i in range(n)]
++    max_gap_idx = max(range(n), key=lambda i: gaps[i])
++    max_gap = gaps[max_gap_idx]
++    start = azs[(max_gap_idx + 1) % n]
++    span = 360.0 - max_gap
++    margin = 0.05 * span
++    return start + margin, start + span - margin
++
++
++def derive_orbit_defaults_from_training_data(args: Params, center: torch.Tensor):
++    """
++    Loads the training dataset (config.yaml's own data_path/scene) and derives:
++      - world_up: the scene's real up direction (DataHandler.viewer_up, the same
++        quantity view.py's own interactive viewer uses) -- NOT assumed to be Z.
++        A from-scratch COLMAP reconstruction (e.g. alocasia_sfm) has an
++        arbitrarily-oriented coordinate frame; there's no reason its up axis
++        would coincide with world Z the way a Blender scene's would.
++      - default_radius: median distance from the training cameras' own eye
++        positions to `center` -- i.e. roughly how far the real photos were
++        actually taken from the object.
++      - default_fov: the first training camera's own horizontal FOV, recovered
++        from its `right` vector magnitude via the exact inverse of
++        make_orbit_camera's own focal-length formula.
++      - (default_azimuth_start, default_azimuth_end): the azimuth range actually covered by
++        the training cameras (see derive_azimuth_range) -- not a blind full-360 sweep.
++
++    Returns None (with a printed reason) if the dataset isn't available on disk
++    -- render_orbit.py can still run checkpoint-only, just falling back to
++    fixed generic defaults in that case.
++    """
++    try:
++        data_handler = DataHandler(args)
++        data_handler.reload("train", downsample=args.downsample[-1])
++    except Exception as e:
++        print(f"Could not load training dataset to derive orbit defaults ({e}); "
++              f"falling back to fixed generic defaults.")
++        return None
++
++    world_up = data_handler.viewer_up.to(torch.float32)
++    u1, u2 = build_equatorial_basis(world_up)
++
++    eyes = data_handler.c2ws[:, :3, 3].to(torch.float32)
++    dists = torch.norm(eyes - center[None, :], dim=-1)
++    default_radius = dists.median().item()
++
++    cam0 = data_handler.cameras[0]
++    right_scale = torch.norm(cam0.right).item()
++    focal = (cam0.width / 2.0 - 0.5) / right_scale
++    default_fov = math.degrees(2.0 * math.atan(0.5 * cam0.width / focal))
++
++    az_start, az_end = derive_azimuth_range(eyes, center, u1, u2)
++
++    print(f"Derived from training cameras: world_up={world_up.tolist()}, "
++          f"radius={default_radius:.4f} (median cam-to-center distance), "
++          f"fov={default_fov:.2f}° (from camera 0's own intrinsics), "
++          f"azimuth range={az_start:.1f}°→{az_end:.1f}° (span of actual training-camera coverage)")
++    return world_up, default_radius, default_fov, az_start, az_end
++
++
+ # ---------------------------------------------------------------------------
+ # Camera utilities
+ # ---------------------------------------------------------------------------
+ 
++def build_equatorial_basis(world_up: torch.Tensor):
++    """Orthonormal (u1, u2) perpendicular to world_up, spanning the orbit's "equatorial" plane
++    -- shared by make_orbit_camera (to build the orbit path) and
++    derive_orbit_defaults_from_training_data (to measure training cameras' azimuths in that
++    same plane, so the two use an identical azimuth convention). Seeds with whichever world axis
++    is least parallel to world_up, to avoid a degenerate cross product."""
++    world_up = world_up.to(torch.float32).cpu()
++    world_up = world_up / torch.norm(world_up)
++    seed = torch.tensor([1., 0., 0.], dtype=torch.float32)
++    if torch.dot(world_up, seed).abs() > 0.9:
++        seed = torch.tensor([0., 1., 0.], dtype=torch.float32)
++    u1 = torch.cross(seed, world_up, dim=-1)
++    u1 = u1 / torch.norm(u1)
++    u2 = torch.cross(world_up, u1, dim=-1)
++    return u1, u2
++
++
+ def fov_cos_cutoff(fov_deg: float, width: int, height: int) -> float:
+     """Matches SphericalVoronoi.compute_fov_cos_cutoff for a pinhole camera."""
+     fov_rad = math.radians(fov_deg)
+@@ -105,35 +218,48 @@ def make_orbit_camera(
+     width: int,
+     height: int,
+     device: torch.device,
++    world_up: torch.Tensor = None,
+ ) -> TorchCamera:
+     """
+     Build a TorchCamera whose eye sits on a sphere of the given radius around
+     `center`.  Follows the exact right/up scaling convention of BlenderDataset
+     so the FOV is interpreted identically to training.
++
++    world_up: the scene's real up direction (see derive_orbit_defaults_from_training_data).
++    Defaults to world Z if not given -- only a safe assumption for scenes that are actually
++    Z-up (e.g. this project's synthetic Blender scenes); a from-scratch COLMAP reconstruction's
++    up axis can point anywhere, so passing the real one matters there. This is used for BOTH
++    the orbit path itself (azimuth sweeps around world_up, not necessarily around Z) and each
++    frame's camera right/up basis.
+     """
++    if world_up is None:
++        world_up = torch.tensor([0., 0., 1.], dtype=torch.float32)
++    world_up = world_up.to(torch.float32).cpu()
++    world_up = world_up / torch.norm(world_up)
++    u1, u2 = build_equatorial_basis(world_up)
++
+     az = math.radians(azimuth_deg)
+     el = math.radians(elevation_deg)
+ 
+-    # Eye position
+-    eye = center + torch.tensor([
+-        radius * math.cos(el) * math.cos(az),
+-        radius * math.cos(el) * math.sin(az),
+-        radius * math.sin(el),
+-    ], dtype=torch.float32)
++    # Eye position: az sweeps around world_up in the (u1, u2) equatorial plane; el tilts
++    # toward/away from world_up.
++    equator_dir = math.cos(az) * u1 + math.sin(az) * u2
++    eye = center + radius * (math.cos(el) * equator_dir + math.sin(el) * world_up)
+ 
+     # Forward: eye → center
+     fwd = center - eye
+     fwd = fwd / torch.norm(fwd)
+ 
+-    # Right: forward × world_up  (fall back to Y if near the poles)
+-    world_up = torch.tensor([0., 0., 1.], dtype=torch.float32)
+-    if torch.dot(fwd, world_up).abs() > 0.99:
+-        world_up = torch.tensor([0., 1., 0.], dtype=torch.float32)
+-    right_dir = torch.cross(fwd, world_up)
++    # Right: forward × world_up  (fall back to u1 if looking nearly along world_up, i.e. near
++    # the orbit's own poles)
++    up_ref = world_up
++    if torch.dot(fwd, up_ref).abs() > 0.99:
++        up_ref = u1
++    right_dir = torch.cross(fwd, up_ref, dim=-1)
+     right_dir = right_dir / torch.norm(right_dir)
+ 
+     # Camera up: right × forward
+-    up_dir = torch.cross(right_dir, fwd)
++    up_dir = torch.cross(right_dir, fwd, dim=-1)
+     up_dir = up_dir / torch.norm(up_dir)
+ 
+     # Scale by FOV — mirrors the BlenderDataset formula exactly:
+@@ -214,16 +340,24 @@ def main():
+                         help="Output .mp4 (default: <checkpoint_dir>/orbit.mp4)")
+     parser.add_argument("--frames", type=int, default=120,
+                         help="Number of frames  [120]")
+-    parser.add_argument("--azimuth_start", type=float, default=-35.0,
+-                        help="Start azimuth in degrees  [-35]")
+-    parser.add_argument("--azimuth_end", type=float, default=325.0,
+-                        help="End azimuth in degrees (exclusive)  [325 → full loop]")
++    parser.add_argument("--azimuth_start", type=float, default=None,
++                        help="Start azimuth in degrees "
++                             "[default: derived from the training cameras' own coverage, if "
++                             "the training dataset is available; else -35]")
++    parser.add_argument("--azimuth_end", type=float, default=None,
++                        help="End azimuth in degrees (exclusive) "
++                             "[default: derived from the training cameras' own coverage, if "
++                             "the training dataset is available; else 325 -> full loop]")
+     parser.add_argument("--elevation", type=float, default=30.0,
+                         help="Fixed elevation angle in degrees  [30]")
+-    parser.add_argument("--radius", type=float, default=1.3,
+-                        help="Camera distance from scene center  [2.0]")
+-    parser.add_argument("--fov", type=float, default=50.0,
+-                        help="Horizontal FOV in degrees  [50]")
++    parser.add_argument("--radius", type=float, default=None,
++                        help="Camera distance from scene center "
++                             "[default: derived from training cameras' own distance to the "
++                             "scene center, if the training dataset is available; else 1.3]")
++    parser.add_argument("--fov", type=float, default=None,
++                        help="Horizontal FOV in degrees "
++                             "[default: derived from the training cameras' own intrinsics, "
++                             "if the training dataset is available; else 50]")
+     parser.add_argument("--width",  type=int, default=768, help="Render width   [768]")
+     parser.add_argument("--height", type=int, default=768, help="Render height  [768]")
+     parser.add_argument("--fps", type=int, default=30, help="Video FPS  [30]")
+@@ -265,29 +399,50 @@ def main():
+             center  = (pts * weights[:, None]).sum(dim=0)
+         print(f"Centre (density-weighted mean) : {center.tolist()}")
+ 
++    # ---- derive orbit defaults (world_up, radius, fov, azimuth range) from the training
++    # cameras, if the training dataset is available -- see
++    # derive_orbit_defaults_from_training_data's own docstring for why this matters (an
++    # independently-run COLMAP reconstruction's up axis doesn't necessarily coincide with world
++    # Z the way a Blender scene's does, and a real capture very often only covers a partial
++    # range of viewpoints, unlike a synthetic scene rendered from every angle). Explicit
++    # --radius/--fov/--azimuth_start/--azimuth_end on the command line always win over the
++    # derived values.
++    derived = derive_orbit_defaults_from_training_data(args, center)
++    if derived is not None:
++        world_up, derived_radius, derived_fov, derived_az_start, derived_az_end = derived
++    else:
++        world_up = None  # make_orbit_camera falls back to world Z
++        derived_radius, derived_fov = 1.3, 50.0
++        derived_az_start, derived_az_end = -35.0, 325.0
++
++    radius = opt.radius if opt.radius is not None else derived_radius
++    fov = opt.fov if opt.fov is not None else derived_fov
++    azimuth_start = opt.azimuth_start if opt.azimuth_start is not None else derived_az_start
++    azimuth_end = opt.azimuth_end if opt.azimuth_end is not None else derived_az_end
++
+     # ---- SphericalVoronoi cutoff for this camera -----------------------------
+-    model.sv.fov_cos_cutoff = fov_cos_cutoff(opt.fov, opt.width, opt.height)
++    model.sv.fov_cos_cutoff = fov_cos_cutoff(fov, opt.width, opt.height)
+ 
+     # ---- render frames -------------------------------------------------------
+     frames_dir = out_path.parent / "_orbit_frames_tmp"
+     frames_dir.mkdir(parents=True, exist_ok=True)
+ 
+-    azimuths = np.linspace(opt.azimuth_start, opt.azimuth_end,
+-                           opt.frames, endpoint=False)
++    azimuths = np.linspace(azimuth_start, azimuth_end, opt.frames, endpoint=False)
+     print(f"Rendering {opt.frames} frames  "
+-          f"(az {opt.azimuth_start}° → {opt.azimuth_end}°, "
+-          f"el {opt.elevation}°, r {opt.radius}, fov {opt.fov}°) …")
++          f"(az {azimuth_start:.1f}° → {azimuth_end:.1f}°, "
++          f"el {opt.elevation}°, r {radius:.4f}, fov {fov:.2f}°) …")
+ 
+     for i, az in enumerate(azimuths):
+         cam = make_orbit_camera(
+             center       = center,
+-            radius       = opt.radius,
++            radius       = radius,
+             azimuth_deg  = float(az),
+             elevation_deg= opt.elevation,
+-            fov_deg      = opt.fov,
++            fov_deg      = fov,
+             width        = opt.width,
+             height       = opt.height,
+             device       = device,
++            world_up     = world_up,
+         )
+         frame = render_frame(model, cam, opt.bg)
+         Image.fromarray(frame).save(frames_dir / f"{i:04d}.png")

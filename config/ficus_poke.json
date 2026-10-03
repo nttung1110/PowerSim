@@ -1,0 +1,71 @@
+{
+    "material": "jelly",
+    "n_grid": 64,
+    "grid_lim": 2.0,
+    "E": 2000000.0,
+    "nu": 0.4,
+    "density": 200,
+    "g": [
+        0.0,
+        0.0,
+        0.0
+    ],
+    "grid_v_damping_scale": 0.9999,
+    "rpic_damping": 0.0,
+    "substep_dt": 3e-05,
+    "frame_dt": 0.04,
+    "frame_num": 80,
+    "scale": 1.0,
+    "rotation_degree": [],
+    "rotation_axis": [],
+    "boundary_conditions": [
+        {
+            "type": "cuboid",
+            "point": [
+                1.0,
+                1.0,
+                0.575
+            ],
+            "size": [
+                0.2302,
+                0.3425,
+                0.075
+            ],
+            "velocity": [
+                0,
+                0,
+                0
+            ],
+            "start_time": 0,
+            "end_time": 1000.0,
+            "reset": 1
+        },
+        {
+            "type": "particle_impulse",
+            "force": [
+                -0.12,
+                0.0,
+                0.0
+            ],
+            "num_dt": 40,
+            "start_time": 0
+        }
+    ],
+    "additional_material_params": [
+        {
+            "point": [
+                1.0,
+                1.0,
+                1.25
+            ],
+            "size": [
+                0.2302,
+                0.3425,
+                0.25
+            ],
+            "nu": 0.4,
+            "E": 2000000.0,
+            "density": 70
+        }
+    ]
+}

@@ -1,0 +1,61 @@
+{
+    "material": "jelly",
+    "n_grid": 64,
+    "grid_lim": 2.0,
+    "E": 10000000.0,
+    "nu": 0.4,
+    "density": 200,
+    "g": [
+        0.0,
+        0.0,
+        0.0
+    ],
+    "grid_v_damping_scale": 1.1,
+    "rpic_damping": 0.0,
+    "substep_dt": 3e-05,
+    "frame_dt": 0.04,
+    "frame_num": 80,
+    "scale": 1.0,
+    "rotation_degree": [],
+    "rotation_axis": [],
+    "boundary_conditions": [
+        {
+            "type": "surface_collider",
+            "point": [
+                1.1458271741867065,
+                1.1321686506271362,
+                0.8681010007858276
+            ],
+            "normal": [
+                -0.0070852660574018955,
+                -0.9115903973579407,
+                -0.4110386371612549
+            ],
+            "surface": "sticky",
+            "friction": 0.0,
+            "start_time": 0,
+            "end_time": 1000.0
+        },
+        {
+            "type": "particle_impulse",
+            "force": [
+                0.02,
+                0.0,
+                0.0
+            ],
+            "point": [
+                1.199636,
+                0.831627,
+                0.65377
+            ],
+            "size": [
+                0.08607730269432068,
+                0.09633133560419083,
+                0.09854817390441895
+            ],
+            "num_dt": 40,
+            "start_time": 0
+        }
+    ],
+    "default_camera_index": 0
+}

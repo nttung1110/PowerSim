@@ -1,0 +1,13 @@
+{
+    "up": [
+        -0.013723529875278473,
+        -0.8784161806106567,
+        -0.4776994585990906
+    ],
+    "floor_point": [
+        1.1496939659118652,
+        1.4618420600891113,
+        1.282876968383789
+    ],
+    "note": "garden_v1 world frame: up = sticky-floor collider normal (tabletop), floor_point = a point on the tabletop"
+}

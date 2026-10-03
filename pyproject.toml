@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "powersim"
+version = "0.1.0"
+description = "PowerSim: differentiable physics simulation and rendering with power diagrams (PowerFoam + MPM)"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "Apache-2.0" }
+dynamic = ["dependencies"]
+
+[tool.setuptools]
+packages = ["powersim", "powersim.core", "powersim.foam_evolve", "powersim.foam_evolve.mpm", "powersim.foam_evolve.viz", "powersim.foam_evolve.raytrace", "powersim.foam_evolve.raytrace.kernels", "powersim.material_estimation", "powersim.material_estimation.fields", "powersim.material_estimation.mpm", "powersim.material_estimation.render", "powersim.material_estimation.filling", "powersim.foamedit"]
+
+[tool.setuptools.dynamic]
+dependencies = { file = ["requirements.txt"] }

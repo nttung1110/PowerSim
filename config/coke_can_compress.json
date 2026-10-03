@@ -1,0 +1,66 @@
+{
+    "material": "metal",
+    "n_grid": 200,
+    "grid_lim": 2.0,
+    "E": 2000000.0,
+    "nu": 0.33,
+    "yield_stress": 8000.0,
+    "density": 2700,
+    "g": [
+        0.0,
+        0.0,
+        -9.8
+    ],
+    "grid_v_damping_scale": 0.9999,
+    "substep_dt": 3e-05,
+    "frame_dt": 0.01,
+    "frame_num": 100,
+    "scale": 1.0,
+    "rotation_degree": [],
+    "rotation_axis": [],
+    "boundary_conditions": [
+        {
+            "type": "bounding_box"
+        },
+        {
+            "type": "surface_collider",
+            "point": [
+                1.0,
+                1.0,
+                0.49
+            ],
+            "normal": [
+                0.0,
+                0.0,
+                1.0
+            ],
+            "surface": "sticky",
+            "friction": 0.0,
+            "start_time": 0.0,
+            "end_time": 1000.0
+        },
+        {
+            "type": "cuboid",
+            "point": [
+                1.0,
+                1.0,
+                1.48
+            ],
+            "size": [
+                0.6,
+                0.6,
+                0.15
+            ],
+            "velocity": [
+                0.0,
+                0.0,
+                -0.3816
+            ],
+            "start_time": 0.0,
+            "end_time": 1000.0
+        }
+    ],
+    "default_camera_index": 0,
+    "hardening": 1,
+    "xi": 0.3
+}

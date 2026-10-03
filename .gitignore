@@ -1,0 +1,23 @@
+# downloaded checkpoints and data (see scripts/download_checkpoints.py)
+data/
+
+# run outputs
+outputs/
+
+# build products
+third_party/geogram_psm/geo_power_adj
+*.o
+
+# python
+__pycache__/
+*.pyc
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+
+# scratch / editor
+.tmp/
+.vscode/
+.idea/
+.DS_Store

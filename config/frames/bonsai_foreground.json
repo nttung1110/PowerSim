@@ -1,0 +1,13 @@
+{
+    "up": [
+        0.03704432622183747,
+        -0.759932201477111,
+        -0.6489458891563469
+    ],
+    "floor_point": [
+        0.23792630434036255,
+        1.9189027547836304,
+        1.5172367095947266
+    ],
+    "note": "bonsai_foreground world frame (MipNeRF-360 bonsai COLMAP): up = plane fitted to the lowest 2% of primitives (pot base), floor_point = lowest primitive along it"
+}
