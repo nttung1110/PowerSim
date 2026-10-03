@@ -1,7 +1,17 @@
-# PowerSim: Differentiable Physics Simulation and Rendering with Power Diagrams
+<h1 align="center">PowerSim: Differentiable Physics Simulation and Rendering with Power Diagrams</h1>
 
-Official code for **PowerSim: Differentiable Physics Simulation and Rendering with Power Diagrams**.
-Trong-Tung Nguyen, Anand Bhattad. [Paper](https://arxiv.org/abs/2609.38153) · [Project website](https://power-sim.github.io)
+<p align="center">
+  <strong>Trong-Tung Nguyen</strong> · <strong>Anand Bhattad</strong>
+</p>
+
+<p align="center">
+  <a href="https://arxiv.org/abs/2609.38153"><img src="https://img.shields.io/badge/arXiv-2609.38153-b31b1b.svg" alt="arXiv"></a>
+  <a href="https://power-sim.github.io"><img src="https://img.shields.io/badge/Project-Page-blue.svg" alt="Project page"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache_2.0-green.svg" alt="License"></a>
+</p>
+
+This repository contains the official implementation of the paper
+*PowerSim: Differentiable Physics Simulation and Rendering with Power Diagrams*.
 
 ## Overview
 
